@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Chat App</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+        }
+    </style>
+</head>
+<body class="bg-black text-white min-h-screen flex flex-col">
+    <div id="setup" class="flex flex-col items-center justify-center h-screen p-4">
+        <h1 class="text-2xl font-bold mb-4">Set Up Your Profile</h1>
+        <input id="username" type="text" placeholder="Enter username" class="bg-gray-800 text-white p-2 rounded mb-4 w-full max-w-sm">
+        <label for="profile-pic" class="bg-gray-800 text-white p-2 rounded mb-4 w-full max-w-sm cursor-pointer text-center">Choose Profile Picture</label>
+        <input id="profile-pic" type="file" accept="image/*" class="hidden">
+        <img id="profile-preview" class="w-24 h-24 rounded-full mb-4 hidden" alt="Profile Preview">
+        <button id="setup-btn" class="bg-white text-black px-4 py-2 rounded font-bold">Save Profile</button>
+    </div>
+    <div id="chat" class="flex flex-col h-screen hidden">
+        <div class="flex items-center justify-between p-4 bg-gray-900">
+            <h2 class="text-xl font-bold">Chat</h2>
+            <div class="flex items-center">
+                <img id="my-profile-pic" class="w-8 h-8 rounded-full mr-2" alt="My Profile">
+                <span id="my-username"></span>
+            </div>
+        </div>
+        <div id="chat-log" class="flex-1 overflow-y-auto p-4 space-y-4"></div>
+        <div class="flex items-center p-4 bg-gray-900">
+            <input id="message-input" type="text" placeholder="Type a message..." class="flex-1 bg-gray-800 text-white p-2 rounded-l">
+            <label for="image-input" class="bg-gray-800 text-white px-4 py-2 cursor-pointer">📷</label>
+            <input id="image-input" type="file" accept="image/*" class="hidden">
+            <button id="send-btn" class="bg-white text-black px-4 py-2 rounded-r font-bold">Send</button>
+        </div>
+    </div>
+    <script>
+        const setupDiv = document.getElementById('setup');
+        const chatDiv = document.getElementById('chat');
+        const usernameInput = document.getElementById('username');
+        const profilePicInput = document.getElementById('profile-pic');
+        const profilePreview = document.getElementById('profile-preview');
+        const setupBtn = document.getElementById('setup-btn');
+        const myUsernameSpan = document.getElementById('my-username');
+        const myProfilePicImg = document.getElementById('my-profile-pic');
+        const chatLog = document.getElementById('chat-log');
+        const messageInput = document.getElementById('message-input');
+        const imageInput = document.getElementById('image-input');
+        const sendBtn = document.getElementById('send-btn');
+
+        function getLocalStorage(key) {
+            const data = localStorage.getItem(key);
+            return data ? JSON.parse(data) : null;
+        }
+
+        function setLocalStorage(key, value) {
+            localStorage.setItem(key, JSON.stringify(value));
+        }
+
+        function init() {
+            const profile = getLocalStorage('userProfile');
+            if (!profile) {
+                setupDiv.classList.remove('hidden');
+                chatDiv.classList.add('hidden');
+            } else {
+                setupDiv.classList.add('hidden');
+                chatDiv.classList.remove('hidden');
+                myUsernameSpan.textContent = profile.username;
+                myProfilePicImg.src = profile.profilePic;
+                loadChat();
+            }
+            Notification.requestPermission();
+        }
+
+        function loadChat() {
+            chatLog.innerHTML = '';
+            const messages = getLocalStorage('chatMessages') || [];
+            const myUsername = getLocalStorage('userProfile').username;
+            messages.forEach(msg => {
+                const isMe = msg.from === myUsername;
+                const msgDiv = document.createElement('div');
+                msgDiv.classList.add('flex', isMe ? 'justify-end' : 'justify-start');
+                const innerDiv = document.createElement('div');
+                innerDiv.classList.add('flex', 'items-start', 'max-w-xs', 'p-2', 'rounded', isMe ? 'bg-white' : 'bg-gray-800', isMe ? 'text-black' : 'text-white');
+                const picImg = document.createElement('img');
+                picImg.src = msg.profilePic;
+                picImg.classList.add('w-6', 'h-6', 'rounded-full', 'mr-2');
+                const contentDiv = document.createElement('div');
+                const fromSpan = document.createElement('span');
+                fromSpan.textContent = msg.from;
+                fromSpan.classList.add('text-xs', 'font-bold');
+                contentDiv.appendChild(fromSpan);
+                if (msg.message) {
+                    const p = document.createElement('p');
+                    p.textContent = msg.message;
+                    contentDiv.appendChild(p);
+                }
+                if (msg.image) {
+                    const img = document.createElement('img');
+                    img.src = msg.image;
+                    img.classList.add('max-w-full', 'rounded', 'mt-1');
+                    contentDiv.appendChild(img);
+                }
+                innerDiv.appendChild(picImg);
+                innerDiv.appendChild(contentDiv);
+                msgDiv.appendChild(innerDiv);
+                chatLog.appendChild(msgDiv);
+            });
+            chatLog.scrollTop = chatLog.scrollHeight;
+        }
+
+        function sendMessage(message, image) {
+            const profile = getLocalStorage('userProfile');
+            if (!profile) return;
+            const messages = getLocalStorage('chatMessages') || [];
+            const newMsg = {
+                from: profile.username,
+                profilePic: profile.profilePic,
+                message: message || null,
+                image: image || null
+            };
+            messages.push(newMsg);
+            setLocalStorage('chatMessages', messages);
+            loadChat();
+        }
+
+        function showNotification(from) {
+            if (Notification.permission === 'granted') {
+                new Notification(`New message from ${from}`);
+            }
+        }
+
+        // Event listeners
+        profilePicInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                    profilePreview.src = ev.target.result;
+                    profilePreview.classList.remove('hidden');
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        setupBtn.addEventListener('click', () => {
+            const username = usernameInput.value.trim();
+            if (!username) return alert('Username is required');
+            const file = profilePicInput.files[0];
+            if (!file) return alert('Profile picture is required');
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const profile = {
+                    username,
+                    profilePic: e.target.result
+                };
+                setLocalStorage('userProfile', profile);
+                init();
+            };
+            reader.readAsDataURL(file);
+        });
+
+        sendBtn.addEventListener('click', () => {
+            const message = messageInput.value.trim();
+            const file = imageInput.files[0];
+            if (!message && !file) return;
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    sendMessage(message, e.target.result);
+                    messageInput.value = '';
+                    imageInput.value = '';
+                };
+                reader.readAsDataURL(file);
+            } else {
+                sendMessage(message);
+                messageInput.value = '';
+            }
+        });
+
+        messageInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                sendBtn.click();
+            }
+        });
+
+        window.addEventListener('storage', (e) => {
+            if (e.key === 'chatMessages') {
+                const messages = getLocalStorage('chatMessages') || [];
+                const lastMsg = messages[messages.length - 1];
+                const myUsername = getLocalStorage('userProfile').username;
+                loadChat();
+                if (lastMsg && lastMsg.from !== myUsername) {
+                    showNotification(lastMsg.from);
+                }
+            }
+        });
+
+        init();
+    </script>
+</body>
+</html>
